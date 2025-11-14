@@ -14,7 +14,7 @@
 ## 📦 安装
 
 ```bash
-go get github.com/yourusername/slogplus
+go get github.com/IAmMrChen/slogplus
 ```
 
 ## 🚀 快速开始
@@ -25,7 +25,7 @@ go get github.com/yourusername/slogplus
 package main
 
 import (
-    "github.com/yourusername/slogplus"
+    "github.com/IAmMrChen/slogplus"
     "log/slog"
 )
 
@@ -76,7 +76,7 @@ package main
 import (
     "os"
     "log/slog"
-    "github.com/yourusername/slogplus"
+    "github.com/IAmMrChen/slogplus"
 )
 
 func main() {
@@ -207,7 +207,7 @@ package main
 import (
     "log/slog"
     "os"
-    "github.com/yourusername/slogplus"
+    "github.com/IAmMrChen/slogplus"
 )
 
 func main() {
@@ -236,7 +236,7 @@ import (
     "io"
     "log/slog"
     "os"
-    "github.com/yourusername/slogplus"
+    "github.com/IAmMrChen/slogplus"
 )
 
 func main() {
@@ -262,7 +262,7 @@ import (
     "log/slog"
     "os"
     "time"
-    "github.com/yourusername/slogplus"
+    "github.com/IAmMrChen/slogplus"
 )
 
 func main() {
@@ -382,5 +382,5 @@ MIT License
 ## 🔗 相关链接
 
 - [Go slog 官方文档](https://pkg.go.dev/log/slog)
-- [项目仓库](https://github.com/yourusername/slogplus)
+- [项目仓库](https://github.com/IAmMrChen/slogplus)
 
