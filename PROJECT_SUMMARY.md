@@ -84,7 +84,7 @@ go test -bench=. -benchmem
 ### 1. 新项目
 直接使用 slogplus 作为日志方案：
 ```bash
-go get github.com/yourusername/slogplus
+go get github.com/IAmMrChen/slogplus
 ```
 
 ### 2. 已有项目迁移
@@ -141,10 +141,10 @@ module your-project
 
 go 1.21
 
-require github.com/yourusername/slogplus v0.1.0
+require github.com/IAmMrChen/slogplus v0.1.0
 
 // 本地开发
-replace github.com/yourusername/slogplus => ../slogplus
+replace github.com/IAmMrChen/slogplus => ../slogplus
 ```
 
 #### 方式 B: 从 GitHub 安装（推荐）
@@ -154,13 +154,13 @@ cd /Users/chenyichao/go/src/slogplus
 git init
 git add .
 git commit -m "Initial commit"
-git remote add origin https://github.com/yourusername/slogplus.git
+git remote add origin https://github.com/IAmMrChen/slogplus.git
 git push -u origin main
 git tag v0.1.0
 git push origin v0.1.0
 
 # 2. 在其他项目中安装
-go get github.com/yourusername/slogplus@v0.1.0
+go get github.com/IAmMrChen/slogplus@v0.1.0
 ```
 
 ### 3. 基本使用
@@ -169,7 +169,7 @@ package main
 
 import (
     "log/slog"
-    "github.com/yourusername/slogplus"
+    "github.com/IAmMrChen/slogplus"
 )
 
 func main() {
@@ -309,8 +309,8 @@ MIT License
 
 ## 📞 联系方式
 
-- GitHub: https://github.com/yourusername/slogplus
-- Issues: https://github.com/yourusername/slogplus/issues
+- GitHub: https://github.com/IAmMrChen/slogplus
+- Issues: https://github.com/IAmMrChen/slogplus/issues
 
 ---
 

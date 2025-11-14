@@ -6,10 +6,10 @@
 
 ```bash
 # 1. 在你的项目中安装
-go get github.com/yourusername/slogplus
+go get github.com/IAmMrChen/slogplus
 
 # 2. 在代码中导入
-import "github.com/yourusername/slogplus"
+import "github.com/IAmMrChen/slogplus"
 ```
 
 ### 方式 2: 本地开发引用
@@ -34,10 +34,10 @@ module your-project
 
 go 1.21
 
-require github.com/yourusername/slogplus v0.1.0
+require github.com/IAmMrChen/slogplus v0.1.0
 
 // 使用本地路径
-replace github.com/yourusername/slogplus => ../slogplus
+replace github.com/IAmMrChen/slogplus => ../slogplus
 ```
 
 3. **更新依赖**
@@ -59,7 +59,7 @@ git add .
 git commit -m "Initial commit: slogplus v0.1.0"
 
 # 关联远程仓库（替换为你的用户名）
-git remote add origin https://github.com/yourusername/slogplus.git
+git remote add origin https://github.com/IAmMrChen/slogplus.git
 git branch -M main
 git push -u origin main
 
@@ -73,7 +73,7 @@ git push origin v0.1.0
 将 `go.mod` 中的模块路径更新为真实的 GitHub 路径：
 
 ```go
-module github.com/yourusername/slogplus
+module github.com/IAmMrChen/slogplus
 
 go 1.21
 ```
@@ -82,10 +82,10 @@ go 1.21
 
 ```bash
 # 安装最新版本
-go get github.com/yourusername/slogplus@latest
+go get github.com/IAmMrChen/slogplus@latest
 
 # 安装指定版本
-go get github.com/yourusername/slogplus@v0.1.0
+go get github.com/IAmMrChen/slogplus@v0.1.0
 ```
 
 ## 完整的项目示例
@@ -112,7 +112,7 @@ import (
     "io"
     "log/slog"
     "os"
-    "github.com/yourusername/slogplus"
+    "github.com/IAmMrChen/slogplus"
 )
 
 var Logger *slog.Logger
