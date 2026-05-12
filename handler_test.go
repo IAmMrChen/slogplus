@@ -142,11 +142,11 @@ func TestHandler_CustomTimeFormat(t *testing.T) {
 
 func TestHandler_NoTime(t *testing.T) {
 	var buf bytes.Buffer
-	
+
 	// 使用特殊标记来禁用时间
 	handler := New(&buf, nil)
 	handler.opts.TimeFormat = "" // 手动设置为空字符串
-	
+
 	logger := slog.New(handler)
 	logger.Info("test")
 
@@ -208,3 +208,92 @@ func BenchmarkStdTextHandler(b *testing.B) {
 	}
 }
 
+func BenchmarkStdTextHandler_Simple(b *testing.B) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		logger.Info("test")
+	}
+}
+
+func BenchmarkStdTextHandler_ManyAttrs(b *testing.B) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		logger.Info("test message",
+			"key1", "value1",
+			"key2", 42,
+			"key3", true,
+			"key4", 3.14,
+			"key5", "value5",
+			"key6", 100,
+			"key7", false,
+			"key8", "value8",
+		)
+	}
+}
+
+func TestHandler_DisableTimeOption(t *testing.T) {
+	var buf bytes.Buffer
+	logger := NewLogger(&buf, &Options{DisableTime: true})
+
+	logger.Info("test")
+
+	output := buf.String()
+	if !strings.HasPrefix(strings.TrimSpace(output), "INFO") {
+		t.Fatalf("disabled time output should start with level, got %q", output)
+	}
+}
+
+func TestHandler_DropsOversizedBuffersFromPool(t *testing.T) {
+	var buf bytes.Buffer
+	handler := New(&buf, nil)
+	logger := slog.New(handler)
+
+	logger.Info(strings.Repeat("x", maxPooledBufferSize+1))
+
+	pooled := handler.pool.Get().(*[]byte)
+	if cap(*pooled) > maxPooledBufferSize {
+		t.Fatalf("pooled buffer cap = %d, want <= %d", cap(*pooled), maxPooledBufferSize)
+	}
+}
+
+func TestSetupProductionToUsesProvidedWriter(t *testing.T) {
+	previous := slog.Default()
+	defer slog.SetDefault(previous)
+
+	var buf bytes.Buffer
+	SetupProductionTo(&buf)
+
+	slog.Info("prod message")
+
+	output := buf.String()
+	if !strings.Contains(output, "prod message") {
+		t.Fatalf("SetupProductionTo should write to provided writer, got %q", output)
+	}
+	if strings.Contains(output, "source=") {
+		t.Fatalf("production logger should not add source, got %q", output)
+	}
+}
+
+func TestSetupDevelopmentToUsesProvidedWriterAndDebugLevel(t *testing.T) {
+	previous := slog.Default()
+	defer slog.SetDefault(previous)
+
+	var buf bytes.Buffer
+	SetupDevelopmentTo(&buf)
+
+	slog.Debug("debug message")
+
+	output := buf.String()
+	if !strings.Contains(output, "debug message") {
+		t.Fatalf("SetupDevelopmentTo should enable debug logs, got %q", output)
+	}
+	if !strings.Contains(output, "source=") {
+		t.Fatalf("development logger should add source, got %q", output)
+	}
+}

@@ -1,386 +1,226 @@
 # slogplus
 
-高性能的 Go slog 自定义 Handler 库，提供简洁的日志格式和零内存分配的优化实现。
+`slogplus` 是一个基于 Go 标准库 `log/slog` 的轻量级文本日志 Handler。它的目标不是替代 `slog`，而是在继续使用标准 `slog` API 的前提下，提供更紧凑的文本输出、更直接的初始化方式，以及较低的分配开销。
 
-## ✨ 特性
+适合场景：
 
-- 🚀 **高性能**：使用 buffer pool，性能比标准库 TextHandler 快 20-45%
-- 💾 **零分配**：运行时零额外内存分配
-- 📝 **简洁格式**：`2025/11/14 14:03:14 INFO msg=test key=value`
-- 🎯 **易用性**：提供多种便捷的初始化方式
-- ⚙️ **可配置**：支持自定义时间格式、日志级别、源码位置等
-- 🔧 **兼容标准库**：完全兼容 `log/slog` 接口
+- 已经使用或准备使用 `log/slog`。
+- 希望日志输出比 `slog.TextHandler` 更简洁。
+- 希望生产环境输出到 `stdout`，由 `supervisord`、容器运行时或日志采集器接管落盘和切割。
+- 希望保留自定义时间格式、源码位置、动态日志级别、字段过滤等能力。
 
-## 📦 安装
+## 特性
+
+- 实现标准 `slog.Handler` 接口。
+- 提供 `Setup`、`SetupDefault`、`SetupProduction`、`SetupDevelopment` 等初始化函数。
+- 支持自定义输出目标，例如 `stdout`、文件、`io.MultiWriter`。
+- 提供 `ProductionOptions`、`DevelopmentOptions`、`TestOptions` 预设配置。
+- 支持自定义时间格式、禁用时间、源码位置、动态日志级别和属性过滤。
+- 使用 `sync.Pool` 复用日志缓冲区，并避免把过大的 buffer 长期放回池中。
+
+## 安装
 
 ```bash
 go get github.com/IAmMrChen/slogplus
 ```
 
-## 🚀 快速开始
-
-### 最简单的使用方式
+## 快速开始
 
 ```go
 package main
 
 import (
-    "github.com/IAmMrChen/slogplus"
-    "log/slog"
+	"log/slog"
+
+	"github.com/IAmMrChen/slogplus"
 )
 
 func main() {
-    // 设置为全局默认 logger
-    slogplus.SetupDefault()
-    
-    // 使用 slog 标准接口
-    slog.Info("服务启动", "port", 8080)
-    slog.Warn("磁盘空间不足", "available", "10GB")
-    slog.Error("数据库连接失败", "error", "connection timeout")
+	slogplus.SetupDefault()
+
+	slog.Info("service started", "port", 8080)
+	slog.Warn("disk space low", "available", "10GB")
+	slog.Error("database connection failed", "error", "connection timeout")
 }
 ```
 
-输出：
+输出示例：
+
+```text
+2026/05/12 21:00:00 INFO msg=service started port=8080
+2026/05/12 21:00:00 WARN msg=disk space low available=10GB
+2026/05/12 21:00:00 ERROR msg=database connection failed error=connection timeout
 ```
-2025/11/14 14:03:14 INFO msg=服务启动 port=8080
-2025/11/14 14:03:14 WARN msg=磁盘空间不足 available=10GB
-2025/11/14 14:03:14 ERROR msg=数据库连接失败 error=connection timeout
-```
 
-## 📖 使用指南
+## 初始化方式
 
-### 1. 预设配置
+如果项目主要通过 `slog.Info`、`slog.Error` 这类包级函数输出日志，可以直接设置全局默认 logger。
 
-#### 开发环境
 ```go
-// 开发环境：Debug 级别 + 源码位置
-slogplus.SetupDevelopment()
-
-slog.Debug("调试信息", "var", "value")
-slog.Info("用户登录", "user_id", 12345)
+slogplus.SetupDefault()
+slog.Info("hello")
 ```
 
-#### 生产环境
+生产环境预设：`Info` 级别，不输出源码位置。
+
 ```go
-// 生产环境：Info 级别，无源码位置
 slogplus.SetupProduction()
-
-slog.Info("请求处理", "method", "GET", "path", "/api/users", "duration", "25ms")
 ```
 
-### 2. 自定义配置
+开发环境预设：`Debug` 级别，输出源码位置。
 
 ```go
-package main
+slogplus.SetupDevelopment()
+```
 
-import (
-    "os"
-    "log/slog"
-    "github.com/IAmMrChen/slogplus"
-)
+如果需要自定义 writer，可以使用 `To` 变体。
 
-func main() {
-    // 自定义配置
-    slogplus.Setup(os.Stdout, &slogplus.Options{
-        Level:      slog.LevelInfo,
-        TimeFormat: "2006/01/02 15:04:05",
-        AddSource:  false,
-    })
-    
-    slog.Info("服务启动成功")
+```go
+file, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+if err != nil {
+	panic(err)
 }
+defer file.Close()
+
+slogplus.SetupProductionTo(file)
 ```
 
-### 3. 创建独立的 Logger
+如果使用 `supervisord`、Docker、Kubernetes 等进程管理或运行环境，推荐应用直接写 `stdout`，由外部系统负责日志落盘、切割和保留。
 
 ```go
-// 创建文件 logger
-file, _ := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-fileLogger := slogplus.NewLogger(file, &slogplus.Options{
-    Level: slog.LevelInfo,
-})
-
-fileLogger.Info("日志写入文件")
-
-// 创建不同级别的 logger
-debugLogger := slogplus.NewLogger(os.Stdout, &slogplus.Options{
-    Level: slog.LevelDebug,
-})
+slogplus.SetupProduction()
 ```
 
-### 4. 动态调整日志级别
+## 独立 Logger
+
+如果不想替换 `slog.Default()`，可以单独创建 logger。
 
 ```go
-// 创建可变日志级别
-levelVar := slogplus.NewLevelVar(slog.LevelInfo)
+logger := slogplus.NewLogger(os.Stdout, slogplus.ProductionOptions())
+logger.Info("service started", "port", 8080)
+```
+
+可以通过 `With` 创建模块或任务专用 logger。
+
+```go
+jobLogger := logger.With("logger", "job")
+jobLogger.Info("job finished", "job_id", "daily-summary")
+```
+
+这类 logger 仍然使用同一个输出目标，只是在日志中增加字段，便于过滤和检索。
+
+## 自定义配置
+
+动态调整日志级别：
+
+```go
+level := slogplus.NewLevelVar(slog.LevelInfo)
 
 slogplus.Setup(os.Stdout, &slogplus.Options{
-    Level: levelVar,
+	Level:      level,
+	TimeFormat: "2006-01-02 15:04:05",
+	AddSource:  false,
 })
 
-slog.Info("这会显示")
-slog.Debug("这不会显示")
+slog.Info("visible")
+slog.Debug("hidden")
 
-// 运行时调整为 Debug 级别
-levelVar.Set(slog.LevelDebug)
-
-slog.Debug("现在会显示了")
+level.Set(slog.LevelDebug)
+slog.Debug("now visible")
 ```
 
-### 5. 使用结构化日志
+禁用时间输出：
 
 ```go
-// 基本属性
-slog.Info("用户操作",
-    "user_id", 12345,
-    "action", "login",
-    "ip", "192.168.1.1",
-)
-
-// 使用 With 添加上下文
-logger := slog.With(
-    "service", "user-api",
-    "version", "1.0.0",
-)
-logger.Info("处理请求", "endpoint", "/api/login")
-// 输出: ... service=user-api version=1.0.0 msg=处理请求 endpoint=/api/login
-
-// 使用分组
-logger.WithGroup("request").Info("请求信息",
-    "method", "POST",
-    "path", "/api/users",
-)
-// 输出: ... msg=请求信息 request.method=POST request.path=/api/users
-```
-
-### 6. 自定义属性处理
-
-```go
-// 移除敏感信息
 slogplus.Setup(os.Stdout, &slogplus.Options{
-    ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-        // 移除密码字段
-        if a.Key == "password" || a.Key == "token" {
-            return slog.Attr{}
-        }
-        
-        // 脱敏处理
-        if a.Key == "phone" {
-            return slog.String("phone", "138****5678")
-        }
-        
-        return a
-    },
+	DisableTime: true,
 })
-
-slog.Info("用户登录",
-    "username", "admin",
-    "password", "secret123",  // 这个不会输出
-    "phone", "13812345678",   // 输出: phone=138****5678
-)
 ```
 
-### 7. 自定义时间格式
+过滤或改写字段：
 
 ```go
-// 完整日期时间
 slogplus.Setup(os.Stdout, &slogplus.Options{
-    TimeFormat: "2006-01-02 15:04:05.000",
+	ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+		switch a.Key {
+		case "password", "token":
+			return slog.Attr{}
+		case "phone":
+			return slog.String("phone", "138****5678")
+		default:
+			return a
+		}
+	},
 })
-
-// 只显示时间
-slogplus.Setup(os.Stdout, &slogplus.Options{
-    TimeFormat: "15:04:05",
-})
-
-// 禁用时间显示
-slogplus.Setup(os.Stdout, &slogplus.Options{
-    TimeFormat: "", // 空字符串表示不显示时间
-})
 ```
 
-### 8. 输出到文件
+## API
 
-```go
-package main
+核心函数：
 
-import (
-    "log/slog"
-    "os"
-    "github.com/IAmMrChen/slogplus"
-)
+- `New(out io.Writer, opts *Options) *Handler`
+- `NewLogger(out io.Writer, opts *Options) *slog.Logger`
+- `Setup(out io.Writer, opts *Options)`
 
-func main() {
-    // 输出到文件
-    file, err := os.OpenFile("app.log", 
-        os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-    if err != nil {
-        panic(err)
-    }
-    defer file.Close()
-    
-    slogplus.Setup(file, &slogplus.Options{
-        Level: slog.LevelInfo,
-    })
-    
-    slog.Info("日志写入文件")
-}
-```
+预设与辅助函数：
 
-### 9. 多 Logger 组合
+- `SetupDefault()`
+- `SetupProduction()`
+- `SetupProductionTo(out io.Writer)`
+- `SetupDevelopment()`
+- `SetupDevelopmentTo(out io.Writer)`
+- `ProductionOptions() *Options`
+- `DevelopmentOptions() *Options`
+- `TestOptions() *Options`
+- `NewLevelVar(level slog.Level) *slog.LevelVar`
 
-```go
-package main
-
-import (
-    "io"
-    "log/slog"
-    "os"
-    "github.com/IAmMrChen/slogplus"
-)
-
-func main() {
-    // 同时输出到控制台和文件
-    file, _ := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-    multiWriter := io.MultiWriter(os.Stdout, file)
-    
-    logger := slogplus.NewLogger(multiWriter, &slogplus.Options{
-        Level: slog.LevelInfo,
-    })
-    
-    slog.SetDefault(logger)
-    slog.Info("同时输出到控制台和文件")
-}
-```
-
-## 🎯 完整示例
-
-```go
-package main
-
-import (
-    "log/slog"
-    "os"
-    "time"
-    "github.com/IAmMrChen/slogplus"
-)
-
-func main() {
-    // 开发环境配置
-    if os.Getenv("ENV") == "development" {
-        slogplus.SetupDevelopment()
-    } else {
-        slogplus.SetupProduction()
-    }
-    
-    // 应用启动
-    slog.Info("应用启动",
-        "version", "1.0.0",
-        "port", 8080,
-        "env", os.Getenv("ENV"),
-    )
-    
-    // 模拟请求处理
-    handleRequest()
-    
-    // 应用关闭
-    slog.Info("应用关闭")
-}
-
-func handleRequest() {
-    // 创建带请求 ID 的 logger
-    requestLogger := slog.With("request_id", "req-12345")
-    
-    start := time.Now()
-    
-    requestLogger.Info("开始处理请求",
-        "method", "GET",
-        "path", "/api/users",
-    )
-    
-    // 模拟处理
-    time.Sleep(10 * time.Millisecond)
-    
-    requestLogger.Info("请求处理完成",
-        "duration", time.Since(start).String(),
-        "status", 200,
-    )
-}
-```
-
-输出：
-```
-2025/11/14 14:03:14 INFO msg=应用启动 version=1.0.0 port=8080 env=production
-2025/11/14 14:03:14 INFO request_id=req-12345 msg=开始处理请求 method=GET path=/api/users
-2025/11/14 14:03:14 INFO request_id=req-12345 msg=请求处理完成 duration=10.234ms status=200
-2025/11/14 14:03:14 INFO msg=应用关闭
-```
-
-## ⚡ 性能
-
-基准测试结果（对比标准库 TextHandler）：
-
-| 场景 | 标准库 | slogplus | 提升 |
-|------|--------|----------|------|
-| 简单日志 | 5,672 ns/op | 4,555 ns/op | **20%** ⚡ |
-| 普通日志 | 9,427 ns/op | 5,805 ns/op | **38%** ⚡ |
-| 复杂日志 | 14,069 ns/op | 7,696 ns/op | **45%** ⚡ |
-| 内存分配 | 0-128 B/op | 0-128 B/op | **相同** ✅ |
-| 分配次数 | 0-1 次 | 0-1 次 | **相同** ✅ |
-
-运行基准测试：
-```bash
-go test -bench=. -benchmem
-```
-
-## 🔧 配置选项
+配置项：
 
 ```go
 type Options struct {
-    // Level 设置最低日志级别
-    // 默认: slog.LevelInfo
-    Level slog.Leveler
-    
-    // TimeFormat 自定义时间格式
-    // 默认: "2006/01/02 15:04:05"
-    // 空字符串: 不显示时间
-    TimeFormat string
-    
-    // AddSource 是否添加源代码位置信息
-    // 默认: false
-    AddSource bool
-    
-    // ReplaceAttr 允许自定义属性的处理
-    // 返回空 Attr 表示忽略该属性
-    ReplaceAttr func(groups []string, a slog.Attr) slog.Attr
+	Level       slog.Leveler
+	TimeFormat  string
+	DisableTime bool
+	AddSource   bool
+	ReplaceAttr func(groups []string, a slog.Attr) slog.Attr
 }
 ```
 
-## 📚 API 参考
+## 性能
 
-### 核心函数
+当前 benchmark 会将 `slogplus` 与标准库 `slog.TextHandler` 进行对比。
 
-- `New(w io.Writer, opts *Options) *Handler` - 创建新的 Handler
-- `NewLogger(w io.Writer, opts *Options) *slog.Logger` - 创建新的 Logger
-- `Setup(w io.Writer, opts *Options)` - 设置全局默认 Logger
+本地验证命令：
 
-### 便捷函数
+```bash
+GOWORK=off go test -run '^$' -bench 'Benchmark(Handler|StdTextHandler)' -benchmem -count=5
+```
 
-- `SetupDefault()` - 使用默认配置
-- `SetupProduction()` - 生产环境配置
-- `SetupDevelopment()` - 开发环境配置
-- `NewLevelVar(level slog.Level) *LevelVar` - 创建可变日志级别
+在 Windows amd64、Intel i7-10510U 上的一组代表性结果：
 
-## 🤝 贡献
+| 场景 | slog.TextHandler | slogplus | 分配情况 |
+| --- | ---: | ---: | --- |
+| 简单消息 | ~543 ns/op | ~343 ns/op | 两者均为 0 B/op、0 allocs/op |
+| 消息加 3 个属性 | ~950 ns/op | ~480 ns/op | 两者均为 0 B/op、0 allocs/op |
+| 消息加 8 个属性 | ~1648 ns/op | ~906 ns/op | 两者均为 128 B/op、1 alloc/op |
 
-欢迎提交 Issue 和 Pull Request！
+这些数字不是性能承诺。它们会受 Go 版本、CPU、操作系统、日志字段数量和 writer 类型影响。更稳妥的结论是：在当前 benchmark 覆盖的文本输出场景中，`slogplus` 比标准库 `slog.TextHandler` 更快；简单日志路径保持零分配，多属性日志路径保持低分配。
 
-## 📄 许可证
+## 开发
 
-MIT License
+如果本仓库被放在其他 Go workspace 旁边，测试时建议关闭外层 `go.work`：
 
-## 🔗 相关链接
+```bash
+GOWORK=off go test ./...
+GOWORK=off go test -bench=. -benchmem
+```
 
-- [Go slog 官方文档](https://pkg.go.dev/log/slog)
-- [项目仓库](https://github.com/IAmMrChen/slogplus)
+## 说明
 
+- `slogplus` 不负责日志文件切割。生产环境建议输出到 `stdout`，交给进程管理器、容器运行时或日志采集器处理。
+- buffer 初始容量为 256 字节。日志内容超过该容量时仍会正常扩容；超过 64 KiB 的 buffer 不会放回池中复用。
+- 当前输出面向文本日志，不是 JSON。如果日志链路要求严格 JSON，建议使用 `slog.JSONHandler` 或专门的 JSON Handler。
+
+## 许可证
+
+MIT
